@@ -1,0 +1,82 @@
+name: CI and Deploy to Staging
+
+on:
+  push:
+    branches:
+      - testing
+
+jobs:
+  build_and_push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ['customer_service', 'order_service', 'product_service', 'frontend']
+        include:
+          - service: customer_service
+            path: './backend/customer_service'
+          - service: order_service
+            path: './backend/order_service'
+          - service: product_service
+            path: './backend/product_service'
+          - service: frontend
+            path: './frontend'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push image with latest and SHA tags
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ matrix.path }}
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service }}:latest
+
+  deploy_to_staging:
+    name: Deploy to Staging on AKS
+    runs-on: ubuntu-latest
+    needs: build_and_push
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ secrets.RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Create Staging Namespace
+        run: |
+          STAGING_NAMESPACE="staging-${{ github.run_id }}"
+          kubectl create namespace $STAGING_NAMESPACE || echo "Namespace already exists"
+          echo "STAGING_NAMESPACE=$STAGING_NAMESPACE" >> $GITHUB_ENV
+
+      - name: Create or Update Kubernetes Secret
+        run: |
+          kubectl create secret generic ecomm-secrets-vincentkibet \
+            --from-literal=POSTGRES_USER='postgres' \
+            --from-literal=POSTGRES_PASSWORD='${{ secrets.ACR_PASSWORD }}' \
+            --from-literal=RABBITMQ_USER='guest' \
+            --from-literal=RABBITMQ_PASS='guest' \
+            --from-literal=AZURE_STORAGE_ACCOUNT_NAME='${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}' \
+            --from-literal=AZURE_STORAGE_ACCOUNT_KEY='${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}' \
+            --namespace=${{ env.STAGING_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+      
+      - name: Deploy all manifests to Staging Namespace
+        run: kubectl apply -f k8s/ -n ${{ env.STAGING_NAMESPACE }}
