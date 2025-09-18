@@ -25,4 +25,6 @@ jobs:
 
       - name: Delete Staging Namespace
         run: |
+
           kubectl delete namespace staging-${{ github.event.inputs.run_id }}
+
