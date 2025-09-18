@@ -31,6 +31,18 @@ jobs:
       - name: Create Production Namespace (if not exists)
         run: kubectl create namespace production || echo "Namespace 'production' already exists"
 
+      - name: Create or Update Kubernetes Secret
+        run: |
+          kubectl create secret generic ecomm-secrets-vincentkibet \
+            --from-literal=POSTGRES_USER='postgres' \
+            --from-literal=POSTGRES_PASSWORD='${{ secrets.ACR_PASSWORD }}' \
+            --from-literal=RABBITMQ_USER='guest' \
+            --from-literal=RABBITMQ_PASS='guest' \
+            --from-literal=AZURE_STORAGE_ACCOUNT_NAME='${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}' \
+            --from-literal=AZURE_STORAGE_ACCOUNT_KEY='${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}' \
+            --namespace=production \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Replace :latest tag with specific commit SHA for production
         run: |
           IMAGE_TAG=${{ github.event.pull_request.head.sha }}

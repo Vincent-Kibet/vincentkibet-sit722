@@ -65,6 +65,18 @@ jobs:
           STAGING_NAMESPACE="staging-${{ github.run_id }}"
           kubectl create namespace $STAGING_NAMESPACE || echo "Namespace already exists"
           echo "STAGING_NAMESPACE=$STAGING_NAMESPACE" >> $GITHUB_ENV
+
+      - name: Create or Update Kubernetes Secret
+        run: |
+          kubectl create secret generic ecomm-secrets-vincentkibet \
+            --from-literal=POSTGRES_USER='postgres' \
+            --from-literal=POSTGRES_PASSWORD='${{ secrets.ACR_PASSWORD }}' \
+            --from-literal=RABBITMQ_USER='guest' \
+            --from-literal=RABBITMQ_PASS='guest' \
+            --from-literal=AZURE_STORAGE_ACCOUNT_NAME='${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}' \
+            --from-literal=AZURE_STORAGE_ACCOUNT_KEY='${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}' \
+            --namespace=${{ env.STAGING_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
       
       - name: Deploy all manifests to Staging Namespace
         run: kubectl apply -f k8s/ -n ${{ env.STAGING_NAMESPACE }}
