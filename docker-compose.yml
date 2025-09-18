@@ -1,0 +1,62 @@
+# Compose version
+version: '3.8'
+
+# Define services
+services:
+  # --- Backend Services ---
+  customer_service:
+    build:
+      # Set build path
+      context: ../backend/customer_service
+    # Map host:container ports
+    ports: ["8002:8000"]
+    # Set environment variables
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/ecomm_db
+    # Set start dependency
+    depends_on: [db]
+
+  order_service:
+    build:
+      context: ../backend/order_service
+    ports: ["8001:8000"]
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/ecomm_db
+      - CUSTOMER_SERVICE_URL=http://customer_service:8000
+      - RABBITMQ_HOST=rabbitmq
+    depends_on: [db, rabbitmq, customer_service]
+
+  product_service:
+    build:
+      context: ../backend/product_service
+    ports: ["8000:8000"]
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/ecomm_db
+      - RABBITMQ_HOST=rabbitmq
+    depends_on: [db, rabbitmq]
+
+  # --- Frontend Service ---
+  frontend:
+    build:
+      # Build from here
+      context: .
+    ports: ["8080:80"]
+    depends_on: [product_service, order_service, customer_service]
+
+  # --- Infrastructure Services ---
+  db:
+    # Use postgres image
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=ecomm_db
+    ports: ["5432:5432"]
+
+  rabbitmq:
+    image: rabbitmq:3.9-management-alpine
+    ports:
+      # AMQP port
+      - "5672:5672"
+      # Management UI port
+      - "15672:15672"
