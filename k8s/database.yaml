@@ -1,0 +1,71 @@
+# API version
+apiVersion: apps/v1
+# Resource type
+kind: Deployment
+# Object metadata
+metadata:
+  name: postgres-deployment
+  labels:
+    app: postgres
+# Desired state
+spec:
+  # Pod count
+  replicas: 1
+  # Pod selector
+  selector:
+    matchLabels:
+      app: postgres
+  # Pod template
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # Container list
+      containers:
+      - name: postgres
+        # Container image
+        image: postgres:13-alpine
+        # Container ports
+        ports:
+        - containerPort: 5432
+        # Environment variables
+        env:
+        - name: POSTGRES_DB
+          # Get value from
+          valueFrom:
+            # Use ConfigMap
+            configMapKeyRef:
+              name: ecomm-config-vincentkibet
+              key: DATABASE_NAME
+        - name: POSTGRES_USER
+          valueFrom:
+            # Use Secret
+            secretKeyRef:
+              name: ecomm-secrets-vincentkibet
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ecomm-secrets-vincentkibet
+              key: POSTGRES_PASSWORD
+---
+# API version
+apiVersion: v1
+# Resource type
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: postgres
+spec:
+  # Route to pods
+  selector:
+    app: postgres
+  # Service ports
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  # Internal service
+  type: ClusterIP

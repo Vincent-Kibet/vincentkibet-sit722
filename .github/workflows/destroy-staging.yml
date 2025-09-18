@@ -1,0 +1,28 @@
+name: Destroy Staging Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'The GitHub Run ID of the staging deployment to destroy'
+        required: true
+
+jobs:
+  destroy:
+    name: Destroy Staging Namespace in AKS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ secrets.RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Delete Staging Namespace
+        run: |
+          kubectl delete namespace staging-${{ github.event.inputs.run_id }}

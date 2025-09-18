@@ -1,0 +1,47 @@
+name: Deploy to Production
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  deploy_to_production:
+    if: github.event.pull_request.merged == true
+    name: Deploy to Production on AKS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ secrets.RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Create Production Namespace (if not exists)
+        run: kubectl create namespace production || echo "Namespace 'production' already exists"
+
+      - name: Replace :latest tag with specific commit SHA for production
+        run: |
+          IMAGE_TAG=${{ github.event.pull_request.head.sha }}
+          ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"
+          
+          sed -i "s|${ACR_LOGIN_SERVER}/customer_service:latest|${ACR_LOGIN_SERVER}/customer_service:${IMAGE_TAG}|g" k8s/customer-service.yaml
+          sed -i "s|${ACR_LOGIN_SERVER}/order_service:latest|${ACR_LOGIN_SERVER}/order_service:${IMAGE_TAG}|g" k8s/order-service.yaml
+          sed -i "s|${ACR_LOGIN_SERVER}/product_service:latest|${ACR_LOGIN_SERVER}/product_service:${IMAGE_TAG}|g" k8s/product-service.yaml
+          sed -i "s|${ACR_LOGIN_SERVER}/frontend:latest|${ACR_LOGIN_SERVER}/frontend:${IMAGE_TAG}|g" k8s/frontend.yaml
+          
+          echo "Deploying tag ${IMAGE_TAG} to production."
+
+      - name: Deploy all manifests to Production Namespace
+        run: kubectl apply -f k8s/ -n production

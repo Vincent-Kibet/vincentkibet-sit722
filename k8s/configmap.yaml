@@ -1,0 +1,14 @@
+# API version
+apiVersion: v1
+# Resource type
+kind: ConfigMap
+# Object metadata
+metadata:
+  name: ecomm-config-vincentkibet
+# Configuration data
+data:
+  DATABASE_NAME: ecomm_db
+  AZURE_STORAGE_CONTAINER_NAME: product-images
+  RABBITMQ_HOST: rabbitmq-service
+  CUSTOMER_SERVICE_URL: http://customer-service:8000
+  PRODUCT_SERVICE_URL: http://product-service:8000
